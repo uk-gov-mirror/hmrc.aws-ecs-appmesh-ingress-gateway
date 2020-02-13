@@ -1,7 +1,7 @@
 
-# aws-ecs-sidecar-tls-proxy
+# aws-ecs-appmesh-ingress-gateway
 
-Builds a Nginx Docker image to use as a sidecar that provides end-to-end TLS for micro-services on the MDTP platform.
+Builds an nginx docker image to use as a sidecar that acts as a proxy to enable us to use appmesh on the MDTP platform.
 It is built from the Nginx Alpine Docker image in order to minimise it's footprint.
 https://hub.docker.com/_/nginx
 
@@ -12,6 +12,7 @@ https://hub.docker.com/_/nginx
 * `nginx_bootstrap.sh` is copied to the image and used as the entrypoint; it updates the app port, copies the certs and starts Nginx
 * Nginx listens on 8443 and proxies to a port passed as the environment variable APPLICATION_PORT
 * Nginx allows access to /ping/ping from all to allow LB health checks
+* Uses envoy as a sidecar
 
 ### Building and Testing
 
