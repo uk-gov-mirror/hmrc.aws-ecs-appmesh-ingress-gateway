@@ -1,8 +1,28 @@
 
-# aws-ecs-appmesh-ingress-gateway
+# aws-ecs-sidecar-tls-proxy
 
-This is a placeholder README.md for a new repository
+Builds a Nginx Docker image to use as a sidecar that provides end-to-end TLS for micro-services on the MDTP platform.
+It is built from the Nginx Alpine Docker image in order to minimise it's footprint.
+https://hub.docker.com/_/nginx
 
-### License
+### Notes
 
-This code is open source software licensed under the [Apache 2.0 License]("http://www.apache.org/licenses/LICENSE-2.0.html").
+* Currently using the per zone MDTP wildcard certs, passed as environment variables
+* Uses Packer Docker builder to build the image
+* `nginx_bootstrap.sh` is copied to the image and used as the entrypoint; it updates the app port, copies the certs and starts Nginx
+* Nginx listens on 8443 and proxies to a port passed as the environment variable APPLICATION_PORT
+* Nginx allows access to /ping/ping from all to allow LB health checks
+
+### Building and Testing
+
+* Uses dgoss/goss to test the image https://github.com/aelsabbahy/goss/tree/master/extras/dgoss
+* dgoss/goss can be installed using `make install_dgoss_linux` or `make install_dgoss_osx` for local testing
+* There is a Makefile that controls the build of the container image; run using `make build`
+* The Makefile generates a semver for the image to be built using `version-incrementor`
+* Packer tags the images with this semver and `latest`
+* The goss tests are run using `make test`. dgoss must be installed for this to succeed.
+* The image and tags are pushed to the artifactory docker repository using `make push_image`. This requires artifactory credentials as ENVs `ARTIFACTORY_USERNAME` and `ARTIFACTORY_PASSWORD`
+
+### TBD
+
+* Jenkins Pipeline
