@@ -1,0 +1,66 @@
+file:
+  /etc/nginx/conf.d/app_nginx.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+    contains: ["server 127.0.0.1:8080"]
+  /etc/nginx/nginx.conf:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+  /etc/ssl/certs/mdtp.pem:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+  /etc/ssl/private/mdtp.key:
+    exists: true
+    mode: "0644"
+    owner: root
+    group: root
+    filetype: file
+  /usr/local/bin/nginx_bootstrap.sh:
+    exists: true
+    mode: "0755"
+    owner: root
+    group: root
+    filetype: file
+  /var/log/nginx/access.log:
+    exists: true
+    mode: "0777"
+    owner: root
+    group: root
+    linked-to: /dev/stdout
+    filetype: symlink
+  /var/log/nginx/error.log:
+    exists: true
+    mode: "0777"
+    owner: root
+    group: root
+    linked-to: /dev/stderr
+    filetype: symlink
+package:
+  nginx:
+    installed: true
+    versions:
+    - 1.17.1-r1
+port:
+  tcp:8443:
+    listening: true
+    ip:
+    - 0.0.0.0
+process:
+  nginx:
+    running: true
+http:
+  http://localhost:
+    status: 200
+    allow-insecure: false
+    no-follow-redirects: false
+    timeout: 5000
+    body: []
