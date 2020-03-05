@@ -6,6 +6,12 @@ DGOSS_OK := $(shell type -P dgoss)
 SSL_KEY := $(shell cat test_certs/fake_64.key)
 SSL_CERT := $(shell cat test_certs/fake_64.cert)
 
+default: help
+
+help: ## The help text you're reading
+	@grep --no-filename -E '^[a-zA-Z1-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+.PHONY: help
+
 install_dgoss_linux:
     ifeq ('$(DGOSS_OK)','')
 		# Install latest version to /usr/local/bin
@@ -43,7 +49,7 @@ check_dgoss:
 	    $(error package 'dgoss' not found!)
     endif
 
-build: check_dgoss check_packer check_docker prep_version_incrementor
+build: check_dgoss check_packer check_docker prep_version_incrementor ## Check installation of DGoss & Packer and prepare the next version and start the build
 	@echo '********** Building docker image ************'
 	@pipenv run prepare-release
 	@umask 0022
@@ -66,7 +72,7 @@ prep_version_incrementor:
 	@echo "Installing version-incrementor with pipenv"
 	@pip install pipenv --upgrade
 	@pipenv --python $(PYTHON_VERSION)
-	@pipenv run pip install -i https://artefacts.tax.service.gov.uk/artifactory/api/pypi/pips/simple version-incrementor==0.2.0
+	@pipenv run pip install -i https://artefacts.tax.service.gov.uk/artifactory/api/pypi/pips/simple version-incrementor==0.7.0
 
 clean:
 	@echo '********** Cleaning up ************'
