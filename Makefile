@@ -6,6 +6,12 @@ DGOSS_OK := $(shell type -P dgoss)
 SSL_KEY := $(shell cat test_certs/fake_64.key)
 SSL_CERT := $(shell cat test_certs/fake_64.cert)
 
+default: help
+
+help: ## The help text you're reading
+	@grep --no-filename -E '^[a-zA-Z1-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+.PHONY: help
+
 install_dgoss_linux:
     ifeq ('$(DGOSS_OK)','')
 		# Install latest version to /usr/local/bin
@@ -43,20 +49,20 @@ check_dgoss:
 	    $(error package 'dgoss' not found!)
     endif
 
-build: check_dgoss check_packer check_docker prep_version_incrementor
+build: check_dgoss check_packer check_docker prep_version_incrementor ## Check Goss & Packer installations, prepare the next version and start the build
 	@echo '********** Building docker image ************'
 	@pipenv run prepare-release
 	@umask 0022
 	@packer build --var image_version=$$(cat .version) proxy_packer.json
 
-test:
+test: ## Set required dummy SSL key/cert and run tests
 	@echo '********** Running tests ************'
-	dgoss run -d --env "APPLICATION_PORT=8080" --env SSL_CERT=$(SSL_CERT) --env SSL_KEY=$(SSL_KEY) artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:latest
+	dgoss run -d --env "APPLICATION_PORT=8080" --env SSL_CERT=$(SSL_CERT) --env SSL_KEY=$(SSL_KEY) artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version)
 
-authenticate_to_artifactory:
-	@docker login --username ${ARTIFACTORY_USERNAME} --password "${ARTIFACTORY_PASSWORD}"  artefacts.tax.service.gov.uk
+authenticate_to_artifactory: ## Docker login to artefactory using stored LDAP username in ARTIFACTORY_USERNAME environment variable & prompt for password
+	@docker login --username ${ARTIFACTORY_USERNAME} artefacts.tax.service.gov.uk
 
-push_image: authenticate_to_artifactory
+push_image: authenticate_to_artifactory ## Push the latest version stored in the local .version file to artefactory
 	@docker push artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version)
 	@pipenv run cut-release
 	@docker push artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:latest
@@ -66,10 +72,10 @@ prep_version_incrementor:
 	@echo "Installing version-incrementor with pipenv"
 	@pip install pipenv --upgrade
 	@pipenv --python $(PYTHON_VERSION)
-	@pipenv run pip install -i https://artefacts.tax.service.gov.uk/artifactory/api/pypi/pips/simple version-incrementor==0.2.0
+	@pipenv run pip install -i https://artefacts.tax.service.gov.uk/artifactory/api/pypi/pips/simple version-incrementor==0.7.0
 
-clean:
+clean: ## Remove the "latest" taggged image (only)
 	@echo '********** Cleaning up ************'
 	@docker rmi -f $$(docker images artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:latest -q)
 
-all: build test clean
+all: build test clean ## Build, test and remove the "latest" image, keeping the semantic versions
