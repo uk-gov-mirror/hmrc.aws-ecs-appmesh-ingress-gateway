@@ -74,7 +74,7 @@ print_endpoint() {
     echo "Public endpoint:"
     prefix=$(aws cloudformation describe-stacks \
         --stack-name="${STACK_NAME}" \
-        --query="Stacks[0].Outputs[?OutputKey=='FrontEndpoint'].OutputValue" \
+        --query="Stacks[0].Outputs[?OutputKey=='IngressGatewayEndpoint'].OutputValue" \
         --output=text)
     echo "${prefix}/color"
 }

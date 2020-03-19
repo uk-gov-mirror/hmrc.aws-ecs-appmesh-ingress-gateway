@@ -915,6 +915,43 @@ Resources:
             - !Ref PrivateSubnet1
             - !Ref PrivateSubnet2
 
+  FrontVirtualService:
+    Type: AWS::AppMesh::VirtualService
+    Properties:
+      MeshName: !GetAtt Mesh.MeshName
+      VirtualServiceName:
+        Fn::Join:
+          - '.'
+          - - !GetAtt FrontServiceRegistry.Name
+            - !Sub '${ProjectName}.mesh.local'
+      Spec:
+        Provider:
+          VirtualRouter:
+            VirtualRouterName: !GetAtt FrontVirtualRouter.VirtualRouterName
+
+  FrontVirtualRouter:
+    Type: AWS::AppMesh::VirtualRouter
+    Properties:
+      MeshName: !GetAtt Mesh.MeshName
+      VirtualRouterName: !Sub '${ProjectName}-front-router'
+      Spec:
+        Listeners:
+          - PortMapping:
+              Port: !Ref ContainerPort
+              Protocol: http
+
+  FrontServiceRegistry:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: 'front'
+      DnsConfig:
+        NamespaceId: !GetAtt PrivateDnsNamespace.Id
+        DnsRecords:
+          - Type: A
+            TTL: 300
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+
   # END feapp
 
   # START public-lb
@@ -955,30 +992,207 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref FrontTargetGroup
+        - TargetGroupArn: !Ref IngressGatewayTargetGroup
           Type: 'forward'
       LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 80
       Protocol: HTTP
 
-  FrontListenerRule:
+  IngressGatewayListenerRule:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
-        - TargetGroupArn: !Ref FrontTargetGroup
+        - TargetGroupArn: !Ref IngressGatewayTargetGroup
           Type: 'forward'
       Conditions:
         - Field: path-pattern
           Values:
-            - '/color'
+            - '/'
       ListenerArn: !Ref PublicLoadBalancerListener
-      Priority: 10
+      Priority: 5
 
   # END public-lb
 
+  # START ingress-gateway
+
+  IngressGatewayECSService:
+    Type: AWS::ECS::Service
+    DependsOn:
+      - PublicLoadBalancer
+    Properties:
+      Cluster: !Ref ECSCluster
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+      DesiredCount: 3
+      LaunchType: 'FARGATE'
+      TaskDefinition: !Ref IngressGatewayTaskDef
+      LoadBalancers:
+        - ContainerName: envoy
+          ContainerPort: 80
+          TargetGroupArn: !Ref IngressGatewayTargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !Ref AppSecurityGroup
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+
+  IngressGatewayTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: '/server_info'
+      HealthCheckPort: 9901
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetType: ip
+      Name: !Sub '${ProjectName}-ingress-gatway'
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 120
+      VpcId: !Ref VPC
+
+  IngressGatewayTaskDef:
+    Type: AWS::ECS::TaskDefinition
+    DependsOn:
+      - IngressGatewayVirtualNode
+    Properties:
+      RequiresCompatibilities:
+        - 'FARGATE'
+      Family: !Sub '${ProjectName}-ingress-gateway'
+      NetworkMode: 'awsvpc'
+      Cpu: 256
+      Memory: 512
+      TaskRoleArn: !Ref TaskIamRole
+      ExecutionRoleArn: !Ref TaskExecutionIamRole
+      ProxyConfiguration:
+        Type: 'APPMESH'
+        ContainerName: 'envoy'
+        ProxyConfigurationProperties:
+          - Name: 'IgnoredUID'
+            Value: '1337'
+          - Name: 'ProxyIngressPort'
+            Value: '15000'
+          - Name: 'ProxyEgressPort'
+            Value: '15001'
+          - Name: 'AppPorts'
+            Value: '80'
+          - Name: 'EgressIgnoredIPs'
+            Value: '169.254.170.2,169.254.169.254'
+      ContainerDefinitions:
+        - Name: 'xray'
+          Image: "amazon/aws-xray-daemon"
+          Essential: true
+          User: '1337'
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'ingress-gateway'
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: 'udp'
+        - Name: 'cwagent'
+          Image: !Ref CloudWatchAgentImage
+          Essential: true
+          User: '1337'
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'cwagent'
+          PortMappings:
+            - ContainerPort: 8125
+              Protocol: 'udp'
+          Environment:
+            - Name: 'HOST_NAME'
+              Value: !GetAtt IngressGatewayVirtualNode.VirtualNodeName
+            - Name: CW_CONFIG_CONTENT
+              Value:
+                Fn::Sub: "{ \"metrics\": { \"namespace\":\"${ProjectName}\", \"metrics_collected\": { \"statsd\": {}}}}"
+        - Name: envoy
+          Image: !Ref EnvoyImage
+          Essential: true
+          User: '1337'
+          DependsOn:
+            - ContainerName: 'xray'
+              Condition: 'START'
+          Ulimits:
+            - Name: "nofile"
+              HardLimit: 15000
+              SoftLimit: 15000
+          PortMappings:
+            - ContainerPort: 80
+              Protocol: 'tcp'
+            - ContainerPort: 9901
+              Protocol: 'tcp'
+            - ContainerPort: 15000
+              Protocol: 'tcp'
+            - ContainerPort: 15001
+              Protocol: 'tcp'
+          HealthCheck:
+            Command:
+              - 'CMD-SHELL'
+              - 'curl -s http://localhost:9901/server_info | grep state | grep -q LIVE'
+            Interval: 5
+            Timeout: 10
+            Retries: 10
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'ingress-gateway'
+          Environment:
+            - Name: 'ENVOY_LOG_LEVEL'
+              Value: 'debug'
+            - Name: 'ENABLE_ENVOY_XRAY_TRACING'
+              Value: '1'
+            - Name: 'ENABLE_ENVOY_STATS_TAGS'
+              Value: '1'
+            - Name: 'ENABLE_ENVOY_DOG_STATSD'
+              Value: '1'
+            - Name: 'APPMESH_VIRTUAL_NODE_NAME'
+              Value:
+                Fn::Join:
+                  - ''
+                  -
+                    - 'mesh/'
+                    - !GetAtt Mesh.MeshName
+                    - '/virtualNode/'
+                    - !GetAtt IngressGatewayVirtualNode.VirtualNodeName
+
+  IngressGatewayVirtualNode:
+    Type: AWS::AppMesh::VirtualNode
+    Properties:
+      MeshName: !GetAtt Mesh.MeshName
+      VirtualNodeName: !Sub "${ProjectName}-ingress-gateway-node"
+      Spec:
+        Listeners:
+          - PortMapping:
+              Port: 80
+              Protocol: http
+        ServiceDiscovery:
+          DNS:
+            Hostname: !GetAtt PublicLoadBalancer.DNSName
+        Backends:
+          - VirtualService:
+              VirtualServiceName: !GetAtt FrontVirtualService.VirtualServiceName
+
 Outputs:
-  FrontEndpoint:
-    Description: 'Public endpoint for Front service'
+  IngressGatewayEndpoint:
+    Description: 'Public endpoint for IngressGateway service'
     Value: !Join ['', ['http://', !GetAtt 'PublicLoadBalancer.DNSName']]
     Export:
-      Name: !Sub "${ProjectName}:FrontEndpoint"
+      Name: !Sub "${ProjectName}:IngressGatewayEndpoint"
+
+
