@@ -436,7 +436,7 @@ Resources:
               awslogs-stream-prefix: 'color'
           Environment:
             - Name: 'ENVOY_LOG_LEVEL'
-              Value: 'debug'
+              Value: 'info'
             - Name: 'ENABLE_ENVOY_XRAY_TRACING'
               Value: '1'
             - Name: 'ENABLE_ENVOY_STATS_TAGS'
@@ -462,7 +462,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 100
-      DesiredCount: 3
+      DesiredCount: 1
       LaunchType: 'FARGATE'
       ServiceRegistries:
         - RegistryArn: !GetAtt 'ColorServiceRegistry.Arn'
@@ -611,7 +611,7 @@ Resources:
               awslogs-stream-prefix: 'color'
           Environment:
             - Name: 'ENVOY_LOG_LEVEL'
-              Value: 'debug'
+              Value: 'info'
             - Name: 'ENABLE_ENVOY_XRAY_TRACING'
               Value: '1'
             - Name: 'ENABLE_ENVOY_STATS_TAGS'
@@ -637,7 +637,7 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 100
-      DesiredCount: 3
+      DesiredCount: 1
       LaunchType: 'FARGATE'
       ServiceRegistries:
         - RegistryArn: !GetAtt 'ColorServiceRegistry.Arn'
@@ -715,25 +715,6 @@ Resources:
 
   # START feapp
 
-  FrontTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckIntervalSeconds: 60
-      HealthCheckPath: '/ping'
-      HealthCheckPort: !Ref ContainerPort
-      HealthCheckProtocol: HTTP
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      TargetType: ip
-      Name: !Sub '${ProjectName}-front'
-      Port: !Ref ContainerPort
-      Protocol: HTTP
-      UnhealthyThresholdCount: 2
-      TargetGroupAttributes:
-        - Key: deregistration_delay.timeout_seconds
-          Value: 120
-      VpcId: !Ref VPC
-
   FrontVirtualNode:
     Type: AWS::AppMesh::VirtualNode
     Properties:
@@ -745,12 +726,16 @@ Resources:
               Port: !Sub '${ContainerPort}'
               Protocol: http
         ServiceDiscovery:
-          DNS:
-            Hostname: !GetAtt PublicLoadBalancer.DNSName
+          AWSCloudMap:
+            NamespaceName: !Sub '${ProjectName}.pvtdns'
+            ServiceName: !GetAtt FrontServiceRegistry.Name
+            Attributes:
+              - Key: 'ECS_TASK_DEFINITION_FAMILY'
+                Value: !Sub '${ProjectName}-front'
         Backends:
           - VirtualService:
               VirtualServiceName: !GetAtt ColorVirtualService.VirtualServiceName
-
+      
   FrontTaskDef:
     Type: AWS::ECS::TaskDefinition
     DependsOn:
@@ -896,16 +881,14 @@ Resources:
       - PublicLoadBalancer
     Properties:
       Cluster: !Ref ECSCluster
+      ServiceRegistries:
+        - RegistryArn: !GetAtt 'FrontServiceRegistry.Arn'
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 100
-      DesiredCount: 3
+      DesiredCount: 1
       LaunchType: 'FARGATE'
       TaskDefinition: !Ref FrontTaskDef
-      LoadBalancers:
-        - ContainerName: app
-          ContainerPort: !Ref ContainerPort
-          TargetGroupArn: !Ref FrontTargetGroup
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED
@@ -952,6 +935,21 @@ Resources:
       HealthCheckCustomConfig:
         FailureThreshold: 1
 
+  FrontRoute:
+    Type: AWS::AppMesh::Route
+    Properties:
+      MeshName: !GetAtt Mesh.MeshName
+      VirtualRouterName: !GetAtt FrontVirtualRouter.VirtualRouterName
+      RouteName: !Sub '${ProjectName}-front-route'
+      Spec:
+        HttpRoute:
+          Match:
+            Prefix: '/color'
+          Action:
+            WeightedTargets:
+              - VirtualNode: !GetAtt FrontVirtualNode.VirtualNodeName
+                Weight: 100
+
   # END feapp
 
   # START public-lb
@@ -986,13 +984,13 @@ Resources:
       SecurityGroups:
         - !Ref PublicLoadBalancerSecurityGroup
 
-  PublicLoadBalancerListener:
+  PublicLoadBalancerIngressListener:
     DependsOn:
       - PublicLoadBalancer
     Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
       DefaultActions:
-        - TargetGroupArn: !Ref IngressGatewayTargetGroup
+        - TargetGroupArn: !Ref IngressGatewayIngressTargetGroup
           Type: 'forward'
       LoadBalancerArn: !Ref PublicLoadBalancer
       Port: 80
@@ -1002,14 +1000,52 @@ Resources:
     Type: AWS::ElasticLoadBalancingV2::ListenerRule
     Properties:
       Actions:
-        - TargetGroupArn: !Ref IngressGatewayTargetGroup
+        - TargetGroupArn: !Ref IngressGatewayIngressTargetGroup
+          Type: 'forward'
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - '/color'
+      ListenerArn: !Ref PublicLoadBalancerIngressListener
+      Priority: 10
+
+  IngressGatewayAdminLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: '30'
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      SecurityGroups:
+        - !Ref PublicLoadBalancerSecurityGroup
+
+  IngressGatewayAdminLoadBalancerListener:
+    DependsOn:
+      - IngressGatewayAdminLoadBalancer
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref IngressGatewayAdminTargetGroup
+          Type: 'forward'
+      LoadBalancerArn: !Ref IngressGatewayAdminLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  IngressGatewayAdminListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - TargetGroupArn: !Ref IngressGatewayAdminTargetGroup
           Type: 'forward'
       Conditions:
         - Field: path-pattern
           Values:
             - '/'
-      ListenerArn: !Ref PublicLoadBalancerListener
-      Priority: 5
+      ListenerArn: !Ref IngressGatewayAdminLoadBalancerListener
+      Priority: 20
 
   # END public-lb
 
@@ -1024,13 +1060,16 @@ Resources:
       DeploymentConfiguration:
         MaximumPercent: 200
         MinimumHealthyPercent: 100
-      DesiredCount: 3
+      DesiredCount: 1
       LaunchType: 'FARGATE'
       TaskDefinition: !Ref IngressGatewayTaskDef
       LoadBalancers:
         - ContainerName: envoy
-          ContainerPort: 80
-          TargetGroupArn: !Ref IngressGatewayTargetGroup
+          ContainerPort: 10000
+          TargetGroupArn: !Ref IngressGatewayIngressTargetGroup
+        - ContainerName: envoy
+          ContainerPort: 9901
+          TargetGroupArn: !Ref IngressGatewayAdminTargetGroup
       NetworkConfiguration:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED
@@ -1040,17 +1079,36 @@ Resources:
             - !Ref PrivateSubnet1
             - !Ref PrivateSubnet2
 
-  IngressGatewayTargetGroup:
+  IngressGatewayIngressTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
       HealthCheckIntervalSeconds: 60
-      HealthCheckPath: '/server_info'
+      HealthCheckPath: '/ready'
       HealthCheckPort: 9901
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 5
       HealthyThresholdCount: 2
       TargetType: ip
-      Name: !Sub '${ProjectName}-ingress-gatway'
+      Name: !Sub '${ProjectName}-ingress-gateway-ingress'
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 120
+      VpcId: !Ref VPC
+
+  IngressGatewayAdminTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 60
+      HealthCheckPath: '/ready'
+      HealthCheckPort: 9901
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      TargetType: ip
+      Name: !Sub '${ProjectName}-ingress-gateway-admin'
       Port: 80
       Protocol: HTTP
       UnhealthyThresholdCount: 2
@@ -1083,7 +1141,7 @@ Resources:
           - Name: 'ProxyEgressPort'
             Value: '15001'
           - Name: 'AppPorts'
-            Value: '80'
+            Value: '10000'
           - Name: 'EgressIgnoredIPs'
             Value: '169.254.170.2,169.254.169.254'
       ContainerDefinitions:
@@ -1131,7 +1189,7 @@ Resources:
               HardLimit: 15000
               SoftLimit: 15000
           PortMappings:
-            - ContainerPort: 80
+            - ContainerPort: 10000
               Protocol: 'tcp'
             - ContainerPort: 9901
               Protocol: 'tcp'
@@ -1154,7 +1212,7 @@ Resources:
               awslogs-stream-prefix: 'ingress-gateway'
           Environment:
             - Name: 'ENVOY_LOG_LEVEL'
-              Value: 'debug'
+              Value: 'info'
             - Name: 'ENABLE_ENVOY_XRAY_TRACING'
               Value: '1'
             - Name: 'ENABLE_ENVOY_STATS_TAGS'
@@ -1179,7 +1237,7 @@ Resources:
       Spec:
         Listeners:
           - PortMapping:
-              Port: 80
+              Port: 10000
               Protocol: http
         ServiceDiscovery:
           DNS:
@@ -1194,5 +1252,10 @@ Outputs:
     Value: !Join ['', ['http://', !GetAtt 'PublicLoadBalancer.DNSName']]
     Export:
       Name: !Sub "${ProjectName}:IngressGatewayEndpoint"
+  IngressGatewayAdminEndpoint:
+    Description: 'Public endpoint for IngressGateway service'
+    Value: !Join ['', ['http://', !GetAtt 'IngressGatewayAdminLoadBalancer.DNSName']]
+    Export:
+      Name: !Sub "${ProjectName}:IngressGatewayAdminEndpoint"
 
 

@@ -71,12 +71,21 @@ confirm_service_linked_role() {
 }
 
 print_endpoint() {
-    echo "Public endpoint:"
+    echo "Public ingress endpoint:"
     prefix=$(aws cloudformation describe-stacks \
         --stack-name="${STACK_NAME}" \
         --query="Stacks[0].Outputs[?OutputKey=='IngressGatewayEndpoint'].OutputValue" \
         --output=text)
-    echo "${prefix}/color"
+    echo "${prefix}"
+}
+
+print_admin_endpoint() {
+    echo "Public admin endpoint:"
+    prefix=$(aws cloudformation describe-stacks \
+        --stack-name="${STACK_NAME}" \
+        --query="Stacks[0].Outputs[?OutputKey=='IngressGatewayAdminEndpoint'].OutputValue" \
+        --output=text)
+    echo "${prefix}"
 }
 
 deploy_stacks() {
@@ -91,6 +100,7 @@ deploy_stacks() {
     deploy "${stage}"
 
     print_endpoint
+    print_admin_endpoint
 }
 
 delete_stacks() {
