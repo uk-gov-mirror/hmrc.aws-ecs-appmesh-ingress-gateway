@@ -18,7 +18,7 @@ if [ -z $ENVOY_IMAGE ]; then
 fi
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null && pwd)"
-PROJECT_NAME="$(basename ${DIR})"
+PROJECT_NAME="pbd-2218"
 STACK_NAME="appmesh-${PROJECT_NAME}"
 ECR_IMAGE_PREFIX=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/${PROJECT_NAME}
 CW_AGENT_IMAGE="${ECR_IMAGE_PREFIX}/cwagent:$(git log -1 --format=%h src/cwagent)"
