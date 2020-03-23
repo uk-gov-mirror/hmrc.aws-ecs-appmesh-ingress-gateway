@@ -20,6 +20,14 @@ This tutorial provides a walkthrough of the basics of App Mesh service. This int
     export ENVOY_IMAGE=...
     ```
 
+For the Sandbox account use the following:
+
+```bash
+ $ export AWS_ACCOUNT_ID=370807233099
+ $ export AWS_DEFAULT_REGION=eu-west-2
+ $ export ENVOY_IMAGE="840364872350.dkr.ecr.us-west-2.amazonaws.com/aws-appmesh-envoy:v1.13.1.1-prod"
+```
+
 ## Prelude
 Before we begin, we need to setup a sample microservices application. To keep it simple lets assume a trivial application with two services 'front' and 'color'. 'front' exposes `/color` endpoint externally and calls 'color' app to get the color. So we start with following architecture.
 
@@ -157,6 +165,7 @@ $ ./deploy-cw-dashboards.sh
 ```
 
 ## Chapter 3: Routing
+
 Now that we have mesh already setup, lets learn how App Mesh can help us with weighted routing, e.g. canary, blue-green, etc. For this exercise we will introduce a new version of 'color' app and lets call it 'color-v2'. Lets say we want clients calling 'color' service to get 50% of responses from 'color' (v1) and 50% from 'color-v2'.
 
 ![Routing App](./images/3-routing-app.png "Routing App")

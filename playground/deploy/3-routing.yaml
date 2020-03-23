@@ -1065,7 +1065,7 @@ Resources:
       TaskDefinition: !Ref IngressGatewayTaskDef
       LoadBalancers:
         - ContainerName: envoy
-          ContainerPort: 10000
+          ContainerPort: 15001
           TargetGroupArn: !Ref IngressGatewayIngressTargetGroup
         - ContainerName: envoy
           ContainerPort: 9901
