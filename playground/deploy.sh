@@ -24,6 +24,7 @@ ECR_IMAGE_PREFIX=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_DEFAULT_REGION}.amazonaws.com/$
 CW_AGENT_IMAGE="${ECR_IMAGE_PREFIX}/cwagent:$(git log -1 --format=%h src/cwagent)"
 COLOR_APP_IMAGE="${ECR_IMAGE_PREFIX}/colorapp:$(git log -1 --format=%h src/colorapp)"
 FRONT_APP_IMAGE="${ECR_IMAGE_PREFIX}/feapp:$(git log -1 --format=%h src/feapp)"
+INGRESS_GATEWAY_APP_IMAGE="${ECR_IMAGE_PREFIX}/ingress-gateway-app:$(git log -1 --format=%h src/ingress-gateway-app)"
 GO_PROXY=${GO_PROXY:-"https://proxy.golang.org"}
 
 # deploy_images builds and pushes docker images for colorapp and feapp to ECR
@@ -36,6 +37,7 @@ deploy_images() {
     docker build -t ${CW_AGENT_IMAGE} ${DIR}/src/cwagent && docker push ${CW_AGENT_IMAGE}
     docker build -t ${COLOR_APP_IMAGE} --build-arg GO_PROXY=${GO_PROXY} ${DIR}/src/colorapp && docker push ${COLOR_APP_IMAGE}
     docker build -t ${FRONT_APP_IMAGE} --build-arg GO_PROXY=${GO_PROXY} ${DIR}/src/feapp && docker push ${FRONT_APP_IMAGE}
+    docker build -t ${INGRESS_GATEWAY_APP_IMAGE} ${DIR}/src/ingress-gateway-app && docker push ${INGRESS_GATEWAY_APP_IMAGE}
 }
 
 # deploy deploys infra, colorapp and feapp.
@@ -53,7 +55,8 @@ deploy() {
         "EnvoyImage=${ENVOY_IMAGE}" \
         "CloudWatchAgentImage=${CW_AGENT_IMAGE}" \
         "ColorAppImage=${COLOR_APP_IMAGE}" \
-        "FrontAppImage=${FRONT_APP_IMAGE}"
+        "FrontAppImage=${FRONT_APP_IMAGE}" \
+        "IngressGatewayAppImage=${INGRESS_GATEWAY_APP_IMAGE}"
 }
 
 delete_cfn_stack() {
