@@ -29,7 +29,7 @@ GO_PROXY=${GO_PROXY:-"https://proxy.golang.org"}
 
 # deploy_images builds and pushes docker images for colorapp and feapp to ECR
 deploy_images() {
-    for f in cwagent colorapp feapp; do
+    for f in cwagent colorapp feapp ingress-gateway-app; do
         aws ecr describe-repositories --repository-name ${PROJECT_NAME}/${f} >/dev/null 2>&1 || aws ecr create-repository --repository-name ${PROJECT_NAME}/${f}
     done
 

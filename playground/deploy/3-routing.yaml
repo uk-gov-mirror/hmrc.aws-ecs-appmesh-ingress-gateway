@@ -1054,8 +1054,8 @@ Resources:
       LaunchType: 'FARGATE'
       TaskDefinition: !Ref IngressGatewayTaskDef
       LoadBalancers:
-        - ContainerName: envoy
-          ContainerPort: 15001
+        - ContainerName: app
+          ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref IngressGatewayIngressTargetGroup
         - ContainerName: envoy
           ContainerPort: 9901
@@ -1136,34 +1136,25 @@ Resources:
             Value: '169.254.170.2,169.254.169.254'
       ContainerDefinitions:
         - Name: 'app'
-              Image: !Ref IngressGatewayAppImage
-              Essential: true
-              LogConfiguration:
-                LogDriver: 'awslogs'
-                Options:
-                  awslogs-group: !Ref LogGroup
-                  awslogs-region: !Ref AWS::Region
-                  awslogs-stream-prefix: 'ingress-gateway'
-              PortMappings:
-                - ContainerPort: !Ref ContainerPort
-                  Protocol: 'tcp'
-              DependsOn:
-                - ContainerName: 'envoy'
-                  Condition: 'HEALTHY'
-                - ContainerName: 'xray'
-                  Condition: 'START'
-              Environment:
-                - Name: 'FRONT_HOST'
-                  Value:
-                    Fn::Join:
-                      - ''
-                      - - !GetAtt FrontVirtualService.VirtualServiceName
-                        - ':'
-                        - !Sub '${ContainerPort}'
-                - Name: PORT
-                  Value: !Sub '${ContainerPort}'
-                - Name: XRAY_APP_NAME
-                  Value: 'ingress-gateway'
+          Image: !Ref IngressGatewayAppImage
+          Essential: true
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'ingress-gateway'
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+              Protocol: 'tcp'
+          DependsOn:
+            - ContainerName: 'envoy'
+              Condition: 'HEALTHY'
+            - ContainerName: 'xray'
+              Condition: 'START'
+          Environment:
+            - Name: XRAY_APP_NAME
+              Value: 'ingress-gateway'
         - Name: 'xray'
           Image: "amazon/aws-xray-daemon"
           Essential: true
