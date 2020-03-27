@@ -1,81 +1,38 @@
 SHELL := /usr/bin/env bash
 PYTHON_VERSION := $(shell cat .python-version)
 DOCKER_OK := $(shell type -P docker)
-PACKER_OK := $(shell type -P packer)
-DGOSS_OK := $(shell type -P dgoss)
-SSL_KEY := $(shell cat test_certs/fake_64.key)
-SSL_CERT := $(shell cat test_certs/fake_64.cert)
 
-default: help
-
-help: ## The help text you're reading
-	@grep --no-filename -E '^[a-zA-Z1-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
-.PHONY: help
-
-install_dgoss_linux:
-    ifeq ('$(DGOSS_OK)','')
-		# Install latest version to /usr/local/bin
-		curl -fsSL https://goss.rocks/install | sh
-	else
-	@echo 'dgoss already installed'
-    endif
-
-install_dgoss_osx:
-    ifeq ('$(DGOSS_OK)','')
-		# Install dgoss
-		curl -L https://raw.githubusercontent.com/aelsabbahy/goss/master/extras/dgoss/dgoss -o /usr/local/bin/dgoss
-		chmod +rx /usr/local/bin/dgoss
-		# Download goss to your preferred location
-		curl -L https://github.com/aelsabbahy/goss/releases/download/v0.3.6/goss-linux-amd64 -o ~/Downloads/goss-linux-amd64
-		# Set your GOSS_PATH to the above location
-		export GOSS_PATH=~/Downloads/goss-linux-amd64
-	@echo 'You may want to add "export GOSS_PATH=~/Downloads/goss-linux-amd64" to your profile and/or move the binary'
-    else
-	@echo 'dgoss already installed'
-    endif
+.PHONY: check_docker build authenticate_to_artifactory push_image prep_version_incrementor clean help compose
+.DEFAULT_GOAL := help
 
 check_docker:
     ifeq ('$(DOCKER_OK)','')
 	    $(error package 'docker' not found!)
     endif
 
-check_packer:
-    ifeq ('$(PACKER_OK)','')
-	    $(error package 'packer' not found!)
-    endif
-
-check_dgoss:
-    ifeq ('$(DGOSS_OK)','')
-	    $(error package 'dgoss' not found!)
-    endif
-
-build: check_dgoss check_packer check_docker prep_version_incrementor ## Check Goss & Packer installations, prepare the next version and start the build
+build: check_docker prep_version_incrementor ## Build the docker image
 	@echo '********** Building docker image ************'
-	@pipenv run prepare-release
-	@umask 0022
-	@packer build --var image_version=$$(cat .version) proxy_packer.json
+	@prepare-release
+	@docker build --no-cache --tag artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version) .
 
-test: ## Set required dummy SSL key/cert and run tests
-	@echo '********** Running tests ************'
-	dgoss run -d --env "APPLICATION_PORT=8080" --env SSL_CERT=$(SSL_CERT) --env SSL_KEY=$(SSL_KEY) artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version)
+authenticate_to_artifactory:
+	@docker login --username ${ARTIFACTORY_USERNAME} --password "${ARTIFACTORY_PASSWORD}" artefacts.tax.service.gov.uk
 
-authenticate_to_artifactory: ## Docker login to artefactory using stored LDAP username in ARTIFACTORY_USERNAME environment variable & prompt for password
-	@docker login --username ${ARTIFACTORY_USERNAME} artefacts.tax.service.gov.uk
-
-push_image: authenticate_to_artifactory ## Push the latest version stored in the local .version file to artefactory
+push_image: ## Push the docker image to artifactory
 	@docker push artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version)
-	@pipenv run cut-release
+	@cut-release
+
+push_latest: ## Push the latest tag to artifactory
+	@docker tag artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version) artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:latest
 	@docker push artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:latest
 
 prep_version_incrementor:
-	@echo "Renaming requirements to prevent pipenv trying to convert it"
-	@echo "Installing version-incrementor with pipenv"
-	@pip install pipenv --upgrade
-	@pipenv --python $(PYTHON_VERSION)
-	@pipenv run pip install -i https://artefacts.tax.service.gov.uk/artifactory/api/pypi/pips/simple version-incrementor==0.7.0
+	@echo "Installing version-incrementor"
+	@pip install -i https://artefacts.tax.service.gov.uk/artifactory/api/pypi/pips/simple 'version-incrementor<1.0.0'
 
-clean: ## Remove the "latest" taggged image (only)
+clean: ## Remove the docker image
 	@echo '********** Cleaning up ************'
-	@docker rmi -f $$(docker images artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:latest -q)
+	@docker rmi -f $$(docker images artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version) -q)
 
-all: build test clean ## Build, test and remove the "latest" image, keeping the semantic versions
+help:
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
