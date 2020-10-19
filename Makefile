@@ -34,5 +34,19 @@ clean: ## Remove the docker image
 	@echo '********** Cleaning up ************'
 	@docker rmi -f $$(docker images artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version) -q)
 
+compose_build:
+	@cd integration_tests && docker-compose build
+
+compose_up: compose_build
+	@cd integration_tests && docker-compose up -d
+
+compose_down:
+	@cd integration_tests && docker-compose down
+
+run_integration_tests:
+	@cd integration_tests && poetry install && poetry run pytest
+
+test: compose_up run_integration_tests compose_down
+
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
