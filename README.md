@@ -18,6 +18,14 @@ It is built from the Nginx Alpine Docker image in order to minimise it's footpri
 * The Makefile generates a semver for the image to be built using `version-incrementor`
 * The image and tags are pushed to the artifactory docker repository using `make push_image`. This requires artifactory credentials as ENVs `ARTIFACTORY_USERNAME` and `ARTIFACTORY_PASSWORD`
 
+## Testing
+
+### Integration Tests
+
+Integration tests live in the [./integration_tests](./integration_tests) folder. They configure the Ingress Gateway Docker image to proxy requests to a local `httpbin` container. The httpbin responses can then be used to make assertions on the behaviour of nginx.
+
+To run the integration tests execute the `make test` task.
+
 ## Jenkins Jobs
 
 [PR builder](https://build.tax.service.gov.uk/job/build-and-deploy/job/aws-ecs-appmesh-ingress-gateway-docker-image-pr-builder/)
