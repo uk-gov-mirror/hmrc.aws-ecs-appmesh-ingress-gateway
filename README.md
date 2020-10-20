@@ -22,9 +22,15 @@ It is built from the Nginx Alpine Docker image in order to minimise it's footpri
 
 ### Integration Tests
 
-Integration tests live in the [./integration_tests](./integration_tests) folder. They configure the Ingress Gateway Docker image to proxy requests to a local `httpbin` container. The httpbin responses can then be used to make assertions on the behaviour of nginx.
+Integration tests live in the [tests](./tests) folder. They configure the Ingress Gateway Docker image to proxy requests to a local `httpbin` container. The httpbin responses can then be used to make assertions on the behaviour of nginx.
 
 To run the integration tests execute the `make test` task.
+
+### Performance Tests
+
+Also defined in the [tests](./tests) directory. To start the Locust web dashboard run `make locust_start`, then navigate to [http://0.0.0.0:8089/](http://0.0.0.0:8089/) in a web browser. From there you can start a performance test run.
+
+To tweak the Ingress Gateway configuration for performance tests use the [docker-compose.performance-testing.yaml](./tests/docker-compose.performance-testing.yaml) file. 
 
 ## Jenkins Jobs
 
