@@ -1,5 +1,5 @@
 ARG DOCKERHUB=dockerhub.tax.service.gov.uk
-FROM ${DOCKERHUB}/nginx:1.17.1-alpine
+FROM ${DOCKERHUB}/nginx:1.17.1
 
 ENV HOSTNAME appmesh-ingress-gateway
 
