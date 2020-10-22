@@ -1,7 +1,0 @@
-version: "2.4"
-services:
-  igw:
-    environment:
-      NGINX_DEBUG: "true"
-      BUFFER: "1k"
-      FLUSH: 1s
