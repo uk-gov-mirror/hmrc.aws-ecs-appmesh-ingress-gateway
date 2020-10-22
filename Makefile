@@ -13,7 +13,7 @@ check_docker:
 build: check_docker prep_version_incrementor ## Build the docker image
 	@echo '********** Building docker image ************'
 	@prepare-release
-	@docker build --no-cache --tag artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version) .
+	@docker build --no-cache --tag artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version) containers/igw
 
 authenticate_to_artifactory:
 	@docker login --username ${ARTIFACTORY_USERNAME} --password "${ARTIFACTORY_PASSWORD}" artefacts.tax.service.gov.uk
@@ -34,19 +34,13 @@ clean: ## Remove the docker image
 	@echo '********** Cleaning up ************'
 	@docker rmi -f $$(docker images artefacts.tax.service.gov.uk/aws-ecs-appmesh-ingress-gateway:$$(cat .version) -q)
 
-compose_build:
-	@cd integration_tests && docker-compose build
+run_integration_tests: ## Run Integration Tests
+	@./batect integration-test
 
-compose_up: compose_build
-	@cd integration_tests && docker-compose up -d
+run_locust: ## Run Locust UI
+	@./batect performance-test
 
-compose_down:
-	@cd integration_tests && docker-compose down
-
-run_integration_tests:
-	@cd integration_tests && poetry install && poetry run pytest
-
-test: compose_up run_integration_tests compose_down
+test: run_integration_tests ## Alias for run_integration_tests
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
