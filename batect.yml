@@ -1,0 +1,135 @@
+containers:
+  igw-integration-testing:
+    additional_hostnames:
+      - igw
+    build_directory: containers/igw
+    dockerfile: Dockerfile
+    environment:
+      # If you change the number of httpbin containers you will have to
+      # update this variable. Note: The absence of the trailing semicolon
+      # is important.
+      APPLICATION_ENDPOINT: httpbin_1:80
+      NGINX_DEBUG: "true"
+      BUFFER: "1k"
+      FLUSH: 1s
+    ports:
+      - '10000:10000'
+
+  igw-performance-testing:
+    additional_hostnames:
+      - igw
+    build_directory: containers/igw
+    dockerfile: Dockerfile
+    environment:
+      # If you change the number of httpbin containers you will have to
+      # update this variable. Note: The absence of the trailing semicolon
+      # is important.
+      APPLICATION_ENDPOINT: httpbin_1:80;\\nserver httpbin_2:80;\\nserver httpbin_3:80
+      BUFFER: 2048k
+      FLUSH: 15s
+      WORKER_CONNECTIONS: 2048
+      WORKER_PROCESSES: auto
+    ports:
+      - '10000:10000'
+
+  httpbin_1:
+    image: kennethreitz/httpbin
+
+  httpbin_2:
+    image: kennethreitz/httpbin
+
+  httpbin_3:
+    image: kennethreitz/httpbin
+
+  test-runner:
+    build_directory: test/test-runner
+    dockerfile: Dockerfile
+    environment:
+      IN_CONTAINER: "True"
+    ports:
+      - 8089:8089
+    volumes:
+      - local: test
+        container: /src/test
+        options: cached
+
+  hadolint:
+    image: hadolint/hadolint:latest
+    volumes:
+      -
+        local: .
+        container: /src
+
+  shellcheck:
+    image: koalaman/shellcheck-alpine:latest
+    volumes:
+      -
+        local: .
+        container: /src
+
+tasks:
+  shell:
+    description: Start shell in test-runner
+    run:
+      container: test-runner
+      command: bash
+    dependencies:
+      - igw-integration-testing
+      - httpbin_1
+
+  test-runner-shell:
+    description: Start shell in test-runner
+    run:
+      container: test-runner
+      command: bash
+
+  integration-test:
+    description: Run Integration Tests
+    run:
+      container: test-runner
+      command: pytest
+    dependencies:
+      - igw-integration-testing
+      - httpbin_1
+
+  performance-test:
+    description: Run Performance Tests
+    run:
+      container: test-runner
+      command: locust -f /src/test/performance_tests.py
+    dependencies:
+      - igw-performance-testing
+      - httpbin_1
+      - httpbin_2
+      - httpbin_3
+
+  lint-dockerfile:
+    description: Lint dockerfiles
+    run:
+      container: hadolint
+      command: sh -c 'for f in `find /src -name "Dockerfile*"`; do echo "Linting $f"; hadolint "$f"; done'
+
+  lint-sh:
+    description: Lint shell scripts
+    run:
+      container: shellcheck
+      command: sh -c 'for f in `find /src -name "*.sh"`; do echo "Linting $f"; shellcheck "$f"; done'
+
+  lint-python:
+    description: Lint python files
+    run:
+      container: test-runner
+      command: sh -c 'flake8 test/ --max-line-length 120 && black --check test/'
+
+  lint:
+    description: Run all lint tasks
+    prerequisites:
+      - lint-dockerfile
+      - lint-sh
+      - lint-python
+
+  verify:
+    description: Verify we are in an acceptable state to publish a release
+    prerequisites:
+      - integration-test
+      - lint
