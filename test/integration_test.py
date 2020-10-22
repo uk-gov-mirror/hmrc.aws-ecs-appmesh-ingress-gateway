@@ -1,9 +1,14 @@
 import http
 import json
+import os
 import uuid
-from http.client import HTTPConnection
+import http.client
 
-igw_endpoint = "localhost:10000"
+if "IN_CONTAINER" in os.environ:
+    igw_hostname = "igw"
+else:
+    igw_hostname = "localhost"
+igw_endpoint = f"{igw_hostname}:10000"
 
 
 def test_nginx_should_proxy_tracing_headers():
@@ -22,8 +27,7 @@ def test_nginx_should_proxy_tracing_headers():
         "GET",
         # ?show_env = https://github.com/postmanlabs/httpbin/issues/454#issuecomment-390414420
         f"http://{igw_endpoint}/get?show_env",
-        headers={"X-Request-Id": x_request_id,
-                 "X-Session-Id": x_session_id}
+        headers={"X-Request-Id": x_request_id, "X-Session-Id": x_session_id},
     )
     response = connection.getresponse()
 
