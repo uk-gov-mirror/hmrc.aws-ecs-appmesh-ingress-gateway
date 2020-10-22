@@ -1,8 +1,0 @@
-version: "2.4"
-services:
-  igw:
-    environment:
-      BUFFER: 2048k
-      FLUSH: 15s
-      WORKER_CONNECTIONS: 2048
-      WORKER_PROCESSES: auto
