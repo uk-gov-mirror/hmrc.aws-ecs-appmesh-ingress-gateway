@@ -24,11 +24,11 @@ containers:
       # If you change the number of httpbin containers you will have to
       # update this variable. Note: The absence of the trailing semicolon
       # is important.
-      APPLICATION_ENDPOINT: httpbin_1:80;\\nserver httpbin_2:80;\\nserver httpbin_3:80
+      APPLICATION_ENDPOINT: httpbin_1:80;\\nserver httpbin_2:80;\\nserver httpbin_3:80;\\nserver httpbin_4:80;\\nserver httpbin_5:80;\\nserver httpbin_6:80;\\nserver httpbin_7:80;\\nserver httpbin_8:80;\\nserver httpbin_9:80;\\nserver httpbin_10:80
       BUFFER: 2048k
       FLUSH: 15s
       WORKER_CONNECTIONS: 2048
-      WORKER_PROCESSES: auto
+      WORKER_PROCESSES: 1
     ports:
       - '10000:10000'
 
@@ -39,6 +39,27 @@ containers:
     image: kennethreitz/httpbin
 
   httpbin_3:
+    image: kennethreitz/httpbin
+
+  httpbin_4:
+    image: kennethreitz/httpbin
+
+  httpbin_5:
+    image: kennethreitz/httpbin
+
+  httpbin_6:
+    image: kennethreitz/httpbin
+
+  httpbin_7:
+    image: kennethreitz/httpbin
+
+  httpbin_8:
+    image: kennethreitz/httpbin
+
+  httpbin_9:
+    image: kennethreitz/httpbin
+
+  httpbin_10:
     image: kennethreitz/httpbin
 
   test-runner:
@@ -102,6 +123,13 @@ tasks:
       - httpbin_1
       - httpbin_2
       - httpbin_3
+      - httpbin_4
+      - httpbin_5
+      - httpbin_6
+      - httpbin_7
+      - httpbin_8
+      - httpbin_9
+      - httpbin_10
 
   lint-dockerfile:
     description: Lint dockerfiles
