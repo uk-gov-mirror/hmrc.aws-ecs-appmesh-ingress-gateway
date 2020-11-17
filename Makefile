@@ -28,7 +28,7 @@ push_latest: ## Push the latest tag to artifactory
 
 prep_version_incrementor:
 	@echo "Installing version-incrementor"
-	@pip install -i https://artefacts.tax.service.gov.uk/artifactory/api/pypi/pips/simple 'version-incrementor<1.0.0'
+	@pip install -i https://artefacts.tax.service.gov.uk/artifactory/api/pypi/pips/simple 'version-incrementor<2.0.0'
 
 clean: ## Remove the docker image
 	@echo '********** Cleaning up ************'
