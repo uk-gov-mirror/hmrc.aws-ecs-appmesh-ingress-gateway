@@ -58,3 +58,4 @@ Unfortunately there is currently no direct batect support in IntelliJ/ PyCharm. 
 Having done this you should now be able to run/ debug the project's tests within your IDE.
 
 _Note:_ Tests use the `IN_CONTAINER` environment variable to detect if they are running inside or outside the `test-runner` container. This is necessary because the networks and ports are different in each context.
+ 
