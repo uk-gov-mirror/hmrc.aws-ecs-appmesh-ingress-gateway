@@ -7,10 +7,12 @@ EXPOSE 10000
 
 COPY files/nginx.conf /etc/nginx/nginx.conf
 COPY files/app_nginx.conf /etc/nginx/conf.d/
+COPY files/api_platform_api_gateway_ingress.conf /etc/nginx/conf.d/
 COPY files/nginx_bootstrap.sh  /usr/local/bin/
 
 RUN chmod 0755 /usr/local/bin/nginx_bootstrap.sh
 RUN chmod 0644 /etc/nginx/nginx.conf
 RUN chmod 0644 /etc/nginx/conf.d/app_nginx.conf
+RUN chmod 0644 /etc/nginx/conf.d/api_platform_api_gateway_ingress.conf
 
 ENTRYPOINT ["/usr/local/bin/nginx_bootstrap.sh"]

@@ -2,6 +2,10 @@ containers:
   igw-integration-testing:
     additional_hostnames:
       - igw
+        # Allow NGINX to be addressed using a hostname in the form
+        # that we receive from API Platform's API Gateway.
+        # This allows us to easily test the API Gateway NGINX configuration.
+      - platform-status-backend.production.tax.service.gov.uk
     build_directory: containers/igw
     dockerfile: Dockerfile
     environment:
@@ -14,6 +18,8 @@ containers:
       FLUSH: 1s
     ports:
       - '10000:10000'
+
+
 
   igw-performance-testing:
     additional_hostnames:
@@ -34,6 +40,11 @@ containers:
 
   httpbin_1:
     image: kennethreitz/httpbin
+    additional_hostnames:
+      # Allow HTTPBin to be addressed using a specific hostname in the
+      # standard MDTP internal form.
+      # This allows us to easily test the API Gateway NGINX configuration.
+      - platform-status-backend.protected.mdtp
 
   httpbin_2:
     image: kennethreitz/httpbin
